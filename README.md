@@ -3,6 +3,15 @@
 ## 📌 Executive Summary
 This project analyzes **138,116 transactional records** totaling **$177M+ in net revenue** to evaluate e-commerce operational efficiency, marketing channel performance, unit economics, and return dynamics. 
 
+### 🖼️ Interactive Dashboard Overview
+
+![E-Commerce Sales & Customer Analytics Dashboard](dashboard.png)
+
+🔗 [View Interactive Dashboard in Looker Studio](ВСТАВЬ_СЮДА_ПУБЛИЧНУЮ_ССЫЛКУ_НА_LOOKER)
+
+---
+
+
 The primary goal is to identify high-value customer segments, pinpoint logistics bottlenecks, and optimize marketing ROI across digital acquisition channels.
 
 ---
