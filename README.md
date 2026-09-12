@@ -7,7 +7,11 @@ This project analyzes **138,116 transactional records** totaling **$177M+ in net
 
 ![E-Commerce Sales & Customer Analytics Dashboard](dashboard.png)
 
-🔗 [View Interactive Dashboard in Looker Studio]([](https://datastudio.google.com/s/vgk4Q3_CtlE))
+🔗 [View Interactive Dashboard in Looker Studio](https://datastudio.google.com/s/vgk4Q3_CtlE)
+
+
+---
+
 
 ---
 
