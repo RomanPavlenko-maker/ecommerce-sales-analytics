@@ -1,0 +1,135 @@
+{\rtf1\ansi\ansicpg1252\cocoartf2870
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fnil\fcharset0 .AppleSystemUIFontMonospaced-Semibold;}
+{\colortbl;\red255\green255\blue255;\red0\green0\blue0;}
+{\*\expandedcolortbl;;\cssrgb\c0\c0\c0;}
+\paperw11900\paperh16840\margl1440\margr1440\vieww11520\viewh8400\viewkind0
+\pard\tx820\li820\fi-300\sl-520\sa160\partightenfactor0
+
+\f0\b\fs34 \cf2 \up2 -- =============================================================================\
+-- E-Commerce Sales & Customer Analytics System\
+-- File: 02_analysis.sql\
+-- Description: Core Analytical Queries (Revenue, Unit Economics, CLV, Return Rates)\
+-- Author: Roman Pavlenko\
+-- Target RDBMS: PostgreSQL 14+\
+-- =============================================================================\
+\
+-- -----------------------------------------------------------------------------\
+-- 1. Executive Summary: High-Level KPI Aggregation\
+-- Calculates total gross/net sales, overall profit margin %, and average order value.\
+-- -----------------------------------------------------------------------------\
+SELECT \
+    COUNT(DISTINCT order_id) AS total_orders,\
+    COUNT(DISTINCT customer_id) AS total_customers,\
+    SUM(gross_sales) AS total_gross_sales,\
+    SUM(discount_amount) AS total_discounts,\
+    SUM(net_sales) AS total_net_sales,\
+    SUM(profit) AS total_profit,\
+    ROUND((SUM(profit) / NULLIF(SUM(net_sales), 0)) * 100, 2) AS overall_profit_margin_pct,\
+    ROUND(AVG(net_sales), 2) AS avg_order_value\
+FROM ecommerce_sales\
+WHERE order_status != 'Cancelled';\
+\
+\
+-- -----------------------------------------------------------------------------\
+-- 2. Marketing Channel & Campaign Performance Analysis\
+-- Evaluates sales channels and digital acquisition sources by net revenue, margin %, and order count.\
+-- -----------------------------------------------------------------------------\
+SELECT \
+    sales_channel,\
+    campaign_name,\
+    COUNT(order_id) AS total_orders,\
+    SUM(net_sales) AS total_net_sales,\
+    SUM(profit) AS total_profit,\
+    ROUND((SUM(profit) / NULLIF(SUM(net_sales), 0)) * 100, 2) AS profit_margin_pct,\
+    ROUND((SUM(net_sales) / SUM(SUM(net_sales)) OVER ()) * 100, 2) AS revenue_share_pct\
+FROM ecommerce_sales\
+WHERE order_status = 'Completed'\
+GROUP BY sales_channel, campaign_name\
+ORDER BY total_net_sales DESC;\
+\
+\
+-- -----------------------------------------------------------------------------\
+-- 3. Customer Lifetime Value (CLV) & Segment Profitability\
+-- Analyzes CLV multipliers across segments (Consumer, Premium, Business, VIP) and repeat purchase behaviors.\
+-- -----------------------------------------------------------------------------\
+WITH customer_aggregates AS (\
+    SELECT \
+        customer_id,\
+        customer_segment,\
+        COUNT(order_id) AS total_orders_per_customer,\
+        SUM(net_sales) AS total_customer_spend,\
+        SUM(profit) AS total_customer_profit\
+    FROM ecommerce_sales\
+    WHERE order_status = 'Completed'\
+    GROUP BY customer_id, customer_segment\
+)\
+SELECT \
+    customer_segment,\
+    COUNT(customer_id) AS total_customers,\
+    ROUND(AVG(total_orders_per_customer), 2) AS avg_orders_per_customer,\
+    ROUND(AVG(total_customer_spend), 2) AS avg_clv_net_sales,\
+    ROUND(AVG(total_customer_profit), 2) AS avg_clv_profit,\
+    ROUND(SUM(total_customer_profit), 2) AS segment_total_profit\
+FROM customer_aggregates\
+GROUP BY customer_segment\
+ORDER BY avg_clv_net_sales DESC;\
+\
+\
+-- -----------------------------------------------------------------------------\
+-- 4. Order Return Dynamics & Logistics Delivery Latency Impact\
+-- Pinpoints return rates and measures how delivery latency impacts customer cancellations.\
+-- -----------------------------------------------------------------------------\
+WITH delivery_metrics AS (\
+    SELECT \
+        customer_country,\
+        order_status,\
+        delivery_days,\
+        CASE \
+            WHEN delivery_days > 5 THEN 'Late Delivery (>5 Days)'\
+            ELSE 'On-Time Delivery (<=5 Days)'\
+        END AS delivery_latency_bracket,\
+        net_sales\
+    FROM ecommerce_sales\
+)\
+SELECT \
+    delivery_latency_bracket,\
+    COUNT(*) AS total_orders,\
+    SUM(CASE WHEN order_status IN ('Returned', 'Cancelled') THEN 1 ELSE 0 END) AS returned_or_cancelled_orders,\
+    ROUND(\
+        (SUM(CASE WHEN order_status IN ('Returned', 'Cancelled') THEN 1 ELSE 0 END)::NUMERIC / COUNT(*)) * 100, \
+        2\
+    ) AS return_cancellation_rate_pct,\
+    ROUND(SUM(CASE WHEN order_status = 'Returned' THEN net_sales ELSE 0 END), 2) AS revenue_loss_from_returns\
+FROM delivery_metrics\
+GROUP BY delivery_latency_bracket\
+ORDER BY return_cancellation_rate_pct DESC;\
+\
+\
+-- -----------------------------------------------------------------------------\
+-- 5. Monthly Revenue Trend & Dual-Axis YoY Growth (Window Functions)\
+-- Monthly aggregation used for trendline visualizations in Looker Studio / Power BI.\
+-- -----------------------------------------------------------------------------\
+WITH monthly_sales AS (\
+    SELECT \
+        DATE_TRUNC('month', order_date)::DATE AS sales_month,\
+        COUNT(order_id) AS total_orders,\
+        SUM(net_sales) AS monthly_net_sales,\
+        SUM(profit) AS monthly_profit\
+    FROM ecommerce_sales\
+    WHERE order_status = 'Completed'\
+    GROUP BY DATE_TRUNC('month', order_date)\
+)\
+SELECT \
+    sales_month,\
+    total_orders,\
+    monthly_net_sales,\
+    monthly_profit,\
+    LAG(monthly_net_sales, 1) OVER (ORDER BY sales_month) AS prev_month_net_sales,\
+    ROUND(\
+        ((monthly_net_sales - LAG(monthly_net_sales, 1) OVER (ORDER BY sales_month)) / \
+        NULLIF(LAG(monthly_net_sales, 1) OVER (ORDER BY sales_month), 0)) * 100, \
+        2\
+    ) AS mom_growth_pct\
+FROM monthly_sales\
+ORDER BY sales_month ASC;\
+}
